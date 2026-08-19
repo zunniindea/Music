@@ -1,27 +1,129 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" class="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>츄냥님을 위한 데일리 노래 다이어리 🌿 | J-POP & Live Music API</title>
+  <title>츄냥님을 위한 데일리 노래 다이어리 🌿 | J-POP & 김츄냥 픽</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  
+  <!-- Firebase SDK Imports -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'chunyang-music-app';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' 
+      ? JSON.parse(__firebase_config) 
+      : {
+          apiKey: "AIzaSyDemoKeyForPreviewModeOnly12345",
+          authDomain: "chunyang-music.firebaseapp.com",
+          projectId: "chunyang-music",
+          storageBucket: "chunyang-music.appspot.com",
+          messagingSenderId: "1234567890",
+          appId: "1:1234567890:web:abcdef123456"
+        };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    window.firebaseCtx = { app, auth, db, appId, collection, addDoc, deleteDoc, doc, onSnapshot };
+
+    async function initAuth() {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error("Auth Initialisation fallback error:", err);
+      }
+    }
+
+    initAuth();
+
+    onAuthStateChanged(auth, (user) => {
+      window.currentUser = user;
+      if (user) {
+        subscribeChunyangPicks();
+      }
+    });
+
+    function subscribeChunyangPicks() {
+      if (!window.currentUser) return;
+      const publicColRef = collection(db, 'artifacts', appId, 'public', 'data', 'chunyang_picks');
+
+      onSnapshot(publicColRef, (snapshot) => {
+        const picks = [];
+        snapshot.forEach((docSnap) => {
+          picks.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        window.chunyangPickList = picks;
+        
+        if (window.currentSelectedCategory === 'pick') {
+          window.renderChunyangPicksUI();
+        }
+      }, (error) => {
+        console.error("Firestore onSnapshot error:", error);
+      });
+    }
+
+    window.addPickToFirestore = async function(songData) {
+      if (!window.currentUser) {
+        alert("서버 연결 초기화 중입니다. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+      try {
+        const publicColRef = collection(db, 'artifacts', appId, 'public', 'data', 'chunyang_picks');
+        await addDoc(publicColRef, {
+          title: songData.title,
+          translatedTitle: songData.translatedTitle || '',
+          artist: songData.artist,
+          artwork: songData.artwork,
+          genre: songData.genre || 'J-POP',
+          createdAt: Date.now()
+        });
+        alert(`'${songData.title}' 곡이 김츄냥 픽 카테고리에 서버 영구 저장되었습니다! 👑`);
+      } catch (err) {
+        console.error("Firestore add error:", err);
+        alert("노래 저장 중 오류가 발생했습니다.");
+      }
+    };
+
+    window.deletePickFromFirestore = async function(docId, title) {
+      if (!window.currentUser) return;
+      if (!confirm(`'${title}' 곡을 김츄냥 픽 목록에서 삭제하시겠습니까?`)) return;
+
+      try {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chunyang_picks', docId);
+        await deleteDoc(docRef);
+      } catch (err) {
+        console.error("Firestore delete error:", err);
+        alert("삭제 중 오류가 발생했습니다.");
+      }
+    };
+  </script>
+
   <script>
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
-            mint: {
-              50: '#f0fdf9',
-              100: '#ccfbf1',
-              200: '#99f6e4',
-              300: '#5eead4',
-              400: '#2dd4bf',
-              500: '#41b3a3',
-              600: '#35988a',
-              700: '#2d5a4c',
-              800: '#1e3e35',
-              900: '#132822'
+            theme: {
+              50: 'var(--color-theme-50)',
+              100: 'var(--color-theme-100)',
+              200: 'var(--color-theme-200)',
+              300: 'var(--color-theme-300)',
+              400: 'var(--color-theme-400)',
+              500: 'var(--color-theme-500)',
+              600: 'var(--color-theme-600)',
+              700: 'var(--color-theme-700)',
+              800: 'var(--color-theme-800)',
+              900: 'var(--color-theme-900)',
             }
           },
           fontFamily: {
@@ -36,16 +138,38 @@
     }
   </script>
   <style>
+    /* 10가지 민트/하늘 테마 색상 변수 정의 */
+    :root {
+      /* Theme 1: 클래식 민트 */
+      --color-theme-50: #f0fdf9;
+      --color-theme-100: #ccfbf1;
+      --color-theme-200: #99f6e4;
+      --color-theme-300: #5eead4;
+      --color-theme-400: #2dd4bf;
+      --color-theme-500: #41b3a3;
+      --color-theme-600: #35988a;
+      --color-theme-700: #2d5a4c;
+      --color-theme-800: #1e3e35;
+      --color-theme-900: #132822;
+      --bg-page: #eef8f5;
+    }
+
+    /* 다크 모드 기본 스타일 */
+    html.dark {
+      --bg-page: #0f1715;
+    }
+
     body {
-      background-color: #eef8f5;
-      color: #2c3e50;
+      background-color: var(--bg-page);
+      font-family: 'Pretendard', sans-serif;
       word-break: keep-all;
+      transition: background-color 0.3s ease, color 0.3s ease;
     }
     
     /* 페이드 인 / 아웃 모션 애니메이션 */
     .fade-out {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(6px);
       transition: opacity 0.25s ease-out, transform 0.25s ease-out;
     }
 
@@ -62,7 +186,7 @@
     @keyframes fadeInUp {
       from {
         opacity: 0;
-        transform: translateY(12px);
+        transform: translateY(10px);
       }
       to {
         opacity: 1;
@@ -70,7 +194,6 @@
       }
     }
 
-    /* 부드러운 아코디언(접고 펴기) 슬라이드 애니메이션 */
     .accordion-content {
       max-height: 0;
       opacity: 0;
@@ -79,144 +202,341 @@
     }
 
     .accordion-content.open {
-      max-height: 500px; /* 내부 컨텐츠 높이에 맞춰 여유 있게 설정 */
+      max-height: 700px;
       opacity: 1;
+    }
+
+    /* 모든 카드 및 UI 배경 색상 부드러운 스무스 트랜지션 */
+    .theme-transition {
+      transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
     }
   </style>
 </head>
-<body class="min-h-screen pb-12 pt-4 px-4 sm:px-6 flex justify-center">
+<body class="min-h-screen pb-12 pt-4 px-4 sm:px-6 flex justify-center text-gray-800 dark:text-gray-100">
 
   <div class="w-full max-w-md sm:max-w-lg flex flex-col gap-5">
 
-    <header class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-100 via-mint-200 to-mint-300 p-6 text-center shadow-soft border border-white/60">
-      <div class="absolute -right-6 -bottom-6 text-mint-500/15 font-bold text-8xl pointer-events-none select-none">🌿</div>
-      <div class="absolute -left-6 -top-6 text-mint-500/15 font-bold text-8xl pointer-events-none select-none">🎵</div>
+    <!-- 1. TOP WELCOME BANNER -->
+    <header class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-theme-100 via-theme-200 to-theme-300 dark:from-theme-900 dark:via-theme-800 dark:to-theme-700 p-6 text-center shadow-soft border border-white/60 dark:border-theme-700 theme-transition">
+      <div class="absolute -right-6 -bottom-6 text-theme-500/15 font-bold text-8xl pointer-events-none select-none">🌿</div>
+      <div class="absolute -left-6 -top-6 text-theme-500/15 font-bold text-8xl pointer-events-none select-none">👑</div>
       
       <div class="relative z-10 flex flex-col items-center">
-        <span class="inline-block px-3 py-1 bg-white/80 text-mint-700 text-xs font-bold rounded-full mb-2 shadow-sm border border-mint-100">
-          FOR CHUNYANG • LIVE MUSIC API
+        <span class="inline-block px-3 py-1 bg-white/80 dark:bg-gray-800/80 text-theme-700 dark:text-theme-200 text-xs font-bold rounded-full mb-2 shadow-sm border border-theme-100 dark:border-theme-600">
+          FOR CHUNYANG • LIVE MUSIC DIARY
         </span>
-        <h1 class="text-2xl sm:text-3xl font-extrabold text-mint-800 tracking-tight drop-shadow-sm">
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-theme-800 dark:text-theme-100 tracking-tight drop-shadow-sm">
           츄냥님을 위한 데일리 노래 다이어리 🌿
         </h1>
-        <p class="text-xs sm:text-sm text-mint-700 font-medium mt-1">
-          실시간 외부 뮤직 라이브러리와 연동되는 무제한 J-POP 탐색 공간
+        <p class="text-xs sm:text-sm text-theme-700 dark:text-theme-200 font-medium mt-1">
+          실시간 J-POP 탐색 & 영구 저장되는 '김츄냥 픽' 노래 보관함
         </p>
       </div>
     </header>
 
-    <section class="bg-white rounded-3xl p-6 shadow-soft border border-mint-100/80 flex flex-col items-center text-center">
+    <!-- 2. PERSONAL PROFILE CARD -->
+    <section class="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-soft border border-theme-100/80 dark:border-gray-700 flex flex-col items-center text-center theme-transition">
       
       <div class="relative mb-3">
-        <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-mint-300 to-mint-100 p-1 shadow-md">
-          <div class="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden border-2 border-mint-400">
+        <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-theme-300 to-theme-100 p-1 shadow-md">
+          <div class="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center overflow-hidden border-2 border-theme-400">
             <span class="text-4xl sm:text-5xl">🐱</span>
           </div>
         </div>
       </div>
 
-      <h2 class="text-xl font-bold text-gray-800">츄냥 (Chunyang)</h2>
-      <p class="text-xs text-gray-500 mt-0.5">J-POP & Live Music Curator</p>
+      <h2 class="text-xl font-bold text-gray-800 dark:text-gray-100">츄냥 (Chunyang)</h2>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">J-POP & Live Music Curator</p>
 
       <div class="flex items-center gap-2 mt-4 w-full max-w-xs">
-        <div class="flex-1 bg-mint-50/80 border border-mint-200 rounded-2xl px-3 py-2 flex items-center justify-between text-xs font-semibold text-mint-800">
-          <span class="text-gray-400 font-normal">SOURCE:</span>
-          <span class="text-mint-700 font-bold">Live Music API</span>
+        <div class="flex-1 bg-theme-50/80 dark:bg-gray-700/60 border border-theme-200 dark:border-gray-600 rounded-2xl px-3 py-2 flex items-center justify-between text-xs font-semibold text-theme-800 dark:text-theme-200">
+          <span class="text-gray-400 font-normal">STORAGE:</span>
+          <span class="text-theme-700 dark:text-theme-300 font-bold">Cloud Server DB</span>
         </div>
-        <button id="copyBtn" onclick="copyMyTag()" class="bg-mint-500 hover:bg-mint-600 text-white border border-mint-600 rounded-2xl px-3 py-2 text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95">
+        <button id="copyBtn" onclick="copyMyTag()" class="bg-theme-500 hover:bg-theme-600 text-white border border-theme-600 rounded-2xl px-3 py-2 text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
           <span id="copyBtnText">소개 복사</span>
         </button>
       </div>
 
-      <p class="text-xs text-gray-600 leading-relaxed mt-4 bg-mint-50/50 p-3.5 rounded-2xl border border-mint-100/50 w-full font-medium">
-        "츄냥님을 위해 최신 J-POP부터 잔잔한 어쿠스틱까지 무제한 음악 라이브러리를 실시간으로 탐색하고 무드별로 자유롭게 추천받아보세요 🌿"
+      <p class="text-xs text-gray-600 dark:text-gray-300 leading-relaxed mt-4 bg-theme-50/50 dark:bg-gray-700/40 p-3.5 rounded-2xl border border-theme-100/50 dark:border-gray-600/50 w-full font-medium">
+        "츄냥님을 위해 최신 J-POP부터 잔잔한 어쿠스틱까지 검색하고, 마음에 드는 노래는 '김츄냥 픽' 보관함에 영구히 저장해보세요 🌿"
       </p>
     </section>
 
-    <main class="bg-white rounded-3xl border border-mint-100 p-5 shadow-soft flex flex-col gap-4">
+    <!-- 3. MAIN SECTION: 실시간 음악 추천 & 김츄냥 픽 카테고리 -->
+    <main class="bg-white dark:bg-gray-800 rounded-3xl border border-theme-100 dark:border-gray-700 p-5 shadow-soft flex flex-col gap-4 theme-transition">
       
-      <div class="flex items-center gap-3 border-b border-gray-100 pb-3">
-        <div class="w-9 h-9 rounded-2xl bg-mint-100 text-mint-600 flex items-center justify-center font-bold text-base shadow-xs">
-          🌐
-        </div>
-        <div>
-          <h3 class="font-bold text-base text-gray-800">실시간 외부 음악 추천 & 검색</h3>
-          <p class="text-[11px] text-gray-400">외부 라이브러리에서 최신 J-POP을 실시간 추천합니다</p>
+      <!-- 헤더 영역 -->
+      <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-3">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-2xl bg-theme-100 dark:bg-theme-900/60 text-theme-600 dark:text-theme-300 flex items-center justify-center font-bold text-base shadow-xs">
+            🎵
+          </div>
+          <div>
+            <h3 class="font-bold text-base text-gray-800 dark:text-gray-100" id="sectionHeaderTitle">실시간 음악 추천 & 검색</h3>
+            <p class="text-[11px] text-gray-400 dark:text-gray-400" id="sectionHeaderSub">한국어 해석이 병기되며 발음으로 자유롭게 검색 가능합니다</p>
+          </div>
         </div>
       </div>
 
+      <!-- 카테고리 필터 버튼 그룹 -->
       <div>
-        <label class="block text-xs font-bold text-gray-600 mb-2">원하는 무드 또는 아티스트 선택</label>
+        <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">카테고리 선택</label>
         <div class="flex flex-wrap gap-1.5" id="moodFilterContainer">
-          <button onclick="fetchExternalSongs('J-POP Trending', event)" class="mood-btn active bg-mint-500 text-white text-xs font-medium px-3 py-1.5 rounded-full transition shadow-sm">🔥 최신 트렌딩</button>
-          <button onclick="fetchExternalSongs('JPOP Acoustic Chill', event)" class="mood-btn bg-gray-100 text-gray-600 hover:bg-mint-100 text-xs font-medium px-3 py-1.5 rounded-full transition">🎧 어쿠스틱 / 힐링</button>
-          <button onclick="fetchExternalSongs('Anime OST Hit', event)" class="mood-btn bg-gray-100 text-gray-600 hover:bg-mint-100 text-xs font-medium px-3 py-1.5 rounded-full transition">🌸 인기 애니 OST</button>
-          <button onclick="fetchExternalSongs('Yorushika YOASOBI Aimer', event)" class="mood-btn bg-gray-100 text-gray-600 hover:bg-mint-100 text-xs font-medium px-3 py-1.5 rounded-full transition">✨ 감성 대표 아티스트</button>
+          <button onclick="fetchExternalSongs('J-POP Trending', event)" class="mood-btn active bg-theme-500 text-white text-xs font-medium px-3 py-1.5 rounded-full transition shadow-sm">🔥 최신 트렌딩</button>
+          <button onclick="switchToChunyangPickCategory(event)" class="mood-btn bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 hover:bg-amber-200 text-xs font-bold px-3 py-1.5 rounded-full transition flex items-center gap-1 border border-amber-200 dark:border-amber-700">
+            <span>👑 김츄냥 픽</span>
+            <span id="pickBadgeCount" class="bg-amber-500 text-white text-[10px] px-1.5 py-0.2 rounded-full">0</span>
+          </button>
+          <button onclick="fetchExternalSongs('JPOP Acoustic Chill', event)" class="mood-btn bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-theme-100 dark:hover:bg-theme-900 text-xs font-medium px-3 py-1.5 rounded-full transition">🎧 어쿠스틱 / 힐링</button>
+          <button onclick="fetchExternalSongs('Anime OST Hit', event)" class="mood-btn bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-theme-100 dark:hover:bg-theme-900 text-xs font-medium px-3 py-1.5 rounded-full transition">🌸 인기 애니 OST</button>
+          <button onclick="fetchExternalSongs('Yorushika YOASOBI Aimer', event)" class="mood-btn bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-theme-100 dark:hover:bg-theme-900 text-xs font-medium px-3 py-1.5 rounded-full transition">✨ 대표 감성 아티스트</button>
         </div>
       </div>
 
-      <div class="flex gap-2">
-        <input type="text" id="customSearchQuery" placeholder="곡 제목, 아티스트 이름 직접 검색..." class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-mint-500">
-        <button onclick="searchCustomKeyword()" class="bg-mint-500 hover:bg-mint-600 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm active:scale-95">
+      <!-- 한국어 지원 검색창 -->
+      <div id="searchBarBox" class="flex gap-2">
+        <input type="text" id="customSearchQuery" placeholder="곡 제목/아티스트 검색 (한글 발음 지원 ex: 요루시카, 밤을 달리다)" class="flex-1 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:border-theme-500">
+        <button onclick="searchCustomKeyword()" class="bg-theme-500 hover:bg-theme-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm active:scale-95 flex-shrink-0">
           검색
         </button>
       </div>
 
-      <button onclick="refreshCurrentCategory()" class="w-full py-3 bg-gradient-to-r from-mint-500 to-mint-600 hover:from-mint-600 hover:to-mint-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition transform active:scale-98 flex items-center justify-center gap-2">
+      <!-- 새로고침 버튼 -->
+      <button id="refreshBtn" onclick="refreshCurrentCategory()" class="w-full py-2.5 bg-gradient-to-r from-theme-500 to-theme-600 hover:from-theme-600 hover:to-theme-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition transform active:scale-98 flex items-center justify-center gap-2">
         <svg class="w-4 h-4 animate-spin hidden" id="spinner" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-        <span>추천 목록 랜덤 믹스 새로고침</span> 🎲
+        <span>목록 랜덤 믹스 새로고침</span> 🎲
       </button>
 
+      <!-- 결과 리스트 -->
       <div id="recommendationResults" class="flex flex-col gap-2.5 transition-all duration-300 min-h-[160px]">
-        </div>
+        <!-- JS 동적 로드 -->
+      </div>
     </main>
 
-    <div class="bg-white rounded-2xl border border-mint-100 shadow-card overflow-hidden">
-      <button onclick="toggleAccordionSmooth('accSetting')" class="w-full p-4 text-left flex justify-between items-center bg-white hover:bg-mint-50/50 transition">
+    <!-- 4. SETTING ACCORDION: 테마 색상 (10가지) & 다크 모드 설정 -->
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-theme-100 dark:border-gray-700 shadow-card overflow-hidden theme-transition">
+      <button onclick="toggleAccordionSmooth('accSetting')" class="w-full p-4 text-left flex justify-between items-center bg-white dark:bg-gray-800 hover:bg-theme-50/50 dark:hover:bg-gray-700/50 transition">
         <div class="flex items-center gap-3">
-          <div class="w-8 h-8 rounded-xl bg-mint-100 text-mint-600 flex items-center justify-center font-bold text-sm">
-            🔑
+          <div class="w-8 h-8 rounded-xl bg-theme-100 dark:bg-theme-900/60 text-theme-600 dark:text-theme-300 flex items-center justify-center font-bold text-sm">
+            🎨
           </div>
           <div>
-            <h3 class="font-bold text-sm sm:text-base text-gray-800">Spotify API 연동 설정 (선택)</h3>
-            <p class="text-[11px] text-gray-400">개발자 Client ID 설정 시 차트 연동 가능</p>
+            <h3 class="font-bold text-sm sm:text-base text-gray-800 dark:text-gray-100">테마 색상 & 다크모드 설정</h3>
+            <p class="text-[11px] text-gray-400 dark:text-gray-400">민트/하늘 계열 10가지 파스텔 스와치 & 모드 스위치</p>
           </div>
         </div>
-        <svg id="icon-accSetting" class="w-5 h-5 text-mint-500 transform transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        <svg id="icon-accSetting" class="w-5 h-5 text-theme-500 transform transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
       </button>
 
       <div id="accSetting" class="accordion-content">
-        <div class="p-4 pt-1 border-t border-gray-100">
-          <div class="flex flex-col gap-2.5 text-xs">
-            <p class="text-gray-500 leading-relaxed">
-              기본 상태에서도 실시간 음악 API를 기반으로 자동 검색 및 추천됩니다.
-            </p>
-            <input type="text" id="spotifyClientId" placeholder="Spotify Client ID" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-mint-500">
-            <input type="password" id="spotifyClientSecret" placeholder="Spotify Client Secret" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-mint-500">
-            <button onclick="saveApiCredentials()" class="bg-mint-500 hover:bg-mint-600 text-white font-bold py-2 rounded-xl text-xs transition">
+        <div class="p-4 pt-1 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-4">
+          
+          <!-- 다크 모드 / 화이트 모드 스위치 -->
+          <div class="flex items-center justify-between bg-theme-50/60 dark:bg-gray-700/50 p-3 rounded-xl border border-theme-100 dark:border-gray-600">
+            <div>
+              <span class="font-bold text-xs text-gray-800 dark:text-gray-100">화면 모드 (다크/라이트)</span>
+              <p class="text-[10px] text-gray-400" id="darkModeStatusText">현재: 라이트 모드</p>
+            </div>
+            <button onclick="toggleDarkMode()" class="px-3.5 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl text-xs font-bold text-theme-700 dark:text-theme-300 shadow-xs flex items-center gap-1.5 transition active:scale-95">
+              <span id="darkModeBtnIcon">🌙</span>
+              <span id="darkModeBtnText">다크모드</span>
+            </button>
+          </div>
+
+          <!-- 10가지 민트/하늘 계열 파스텔 테마 스와치 -->
+          <div>
+            <label class="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-2.5">민트 & 하늘 계열 테마 팔레트 (10가지)</label>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2" id="themeSwatchContainer">
+              <!-- JS 동적 생성 -->
+            </div>
+          </div>
+
+          <!-- Spotify API (선택) -->
+          <div class="pt-2 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-2 text-xs">
+            <span class="font-bold text-gray-700 dark:text-gray-200">Spotify API 연동 (선택)</span>
+            <input type="text" id="spotifyClientId" placeholder="Spotify Client ID" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:border-theme-500">
+            <input type="password" id="spotifyClientSecret" placeholder="Spotify Client Secret" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:border-theme-500">
+            <button onclick="saveApiCredentials()" class="bg-theme-500 hover:bg-theme-600 text-white font-bold py-2 rounded-xl text-xs transition">
               설정 저장
             </button>
             <p id="apiSaveAlert" class="text-emerald-600 font-semibold text-[11px] text-center hidden">✓ 저장되었습니다!</p>
           </div>
+
         </div>
       </div>
     </div>
 
-    <footer class="mt-4 text-center text-[11px] text-gray-400 flex flex-col gap-1">
-      <p>© Chunyang's Personal Live Music Portal. Powered by External Music APIs.</p>
+    <!-- 5. FOOTER -->
+    <footer class="mt-4 text-center text-[11px] text-gray-400 dark:text-gray-500 flex flex-col gap-1">
+      <p>© Chunyang's Personal Live Music Portal. Powered by Cloud Database.</p>
     </footer>
 
   </div>
 
   <script>
     let currentCategoryQuery = 'J-POP Trending';
+    window.currentSelectedCategory = 'search';
 
-    window.onload = function() {
-      fetchExternalSongs('J-POP Trending');
+    // 10가지 민트/하늘 테마 색상 정의
+    const themePresets = [
+      { id: 'classic-mint', name: '클래식 민트', hex: '#41b3a3', bg: '#eef8f5', 50: '#f0fdf9', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 400: '#2dd4bf', 500: '#41b3a3', 600: '#35988a', 700: '#2d5a4c', 800: '#1e3e35', 900: '#132822' },
+      { id: 'light-mint', name: '라이트 민트', hex: '#34d399', bg: '#ecfdf5', 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b' },
+      { id: 'mint-blue', name: '민트 블루', hex: '#38bdf8', bg: '#f0f9ff', 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0284c7', 600: '#0369a1', 700: '#075985', 800: '#0c4a6e', 900: '#0a3852' },
+      { id: 'sage-green', name: '세이지 그린', hex: '#5eead4', bg: '#f2fcf9', 50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 800: '#115e59', 900: '#134e4a' },
+      { id: 'sky-blue', name: '스카이 블루', hex: '#60a5fa', bg: '#eff6ff', 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
+      { id: 'pastel-aqua', name: '파스텔 아쿠아', hex: '#22d3ee', bg: '#ecfeff', 50: '#ecfeff', 100: '#cffafe', 200: '#a5f3fc', 300: '#67e8f9', 400: '#22d3ee', 500: '#06b6d4', 600: '#0891b2', 700: '#0e7490', 800: '#155e75', 900: '#164e63' },
+      { id: 'ice-blue', name: '아이스 블루', hex: '#a5f3fc', bg: '#f4feff', 50: '#f8fafc', 100: '#f1f5f9', 200: '#e2e8f0', 300: '#cbd5e1', 400: '#38bdf8', 500: '#0284c7', 600: '#0284c7', 700: '#0369a1', 800: '#075985', 900: '#0c4a6e' },
+      { id: 'cyan-emerald', name: '시안 에메랄드', hex: '#10b981', bg: '#ebfef6', 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b' },
+      { id: 'ocean-breeze', name: '오션 브리즈', hex: '#0284c7', bg: '#f0f9ff', 50: '#f0f9ff', 100: '#e0f2fe', 200: '#bae6fd', 300: '#7dd3fc', 400: '#38bdf8', 500: '#0284c7', 600: '#0369a1', 700: '#075985', 800: '#0c4a6e', 900: '#0a3852' },
+      { id: 'pale-teal', name: '페일 티얼', hex: '#0d9488', bg: '#f0fdfa', 50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 800: '#115e59', 900: '#134e4a' }
+    ];
+
+    // 대표 일본곡 한국어 번역 / 해석 및 음차 매핑 테이블
+    const japaneseToKoreanTranslationMap = {
+      "雨とカプチーノ": "비와 카푸치노",
+      "言っ て": "말해줘",
+      "言って": "말해줘",
+      "春ひさぎ": "봄도둑",
+      "夜に駆ける": "밤을 달리다",
+      "群青": "군청",
+      "アイドル": "아이돌",
+      "怪物": "괴물",
+      "ドライフラワー": "드라이 플라워",
+      "カタオモイ": "짝사랑 (카타오모이)",
+      "残響散歌": "잔향산가",
+      "打上花火": "쏘아올린 불꽃",
+      "丸の内サディスティック": "마루노우치 새디스틱",
+      "Lemon": "레몬 (Lemon)",
+      "Pretender": "프리텐더 (Pretender)",
+      "Kick Back": "킥 백 (Kick Back)",
+      "Kaikai Kitan": "회회기담",
+      " Shinunoga E-Wa": "죽는 게 나아 (신누노가 이와)",
+      "First Love": "첫사랑 (First Love)",
+      "아무것도 아니야": "Nandemonaiya (아무것도 아니야)"
     };
 
-    // 부드러운 아코디언 토글 함수
+    // 한국어 검색어 변환 매핑
+    const koreanToJapaneseMap = {
+      "요루시카": "Yorushika ヨルシカ",
+      "요아소비": "YOASOBI 夜に駆ける",
+      "아이묭": "Aimyon あいみょん",
+      "요네즈 켄시": "Kenshi Yonezu 米津玄師",
+      "켄시": "Kenshi Yonezu 米津玄師",
+      "에메": "Aimer エメ",
+      "유리": "Yuuri 優里",
+      "오피셜히게단디즘": "Official HIGE DANdism",
+      "히게단": "Official HIGE DANdism",
+      "투유": "Tuyu ヅユ",
+      "이브": "Eve イブ",
+      "라드윗프스": "RADWIMPS",
+      "라드휨스": "RADWIMPS",
+      "카나분": "KANA-BOON",
+      "백넘버": "back number",
+      "킹누": "King Gnu",
+      "비와 카푸치노": "Yorushika Rain with Cappuccino 雨とカプチーノ",
+      "말해줘": "Yorushika Itte 言って",
+      "봄도둑": "Yorushika Spring Thief 春ひさぎ",
+      "밤을 달리다": "YOASOBI Yoru ni Kakeru 夜に駆ける",
+      "군청": "YOASOBI Gunjou 群青",
+      "아이돌": "YOASOBI Idol アイドル",
+      "괴물": "YOASOBI Kaibutsu 怪物",
+      "레몬": "Kenshi Yonezu Lemon",
+      "드라이플라워": "Yuuri Dry Flower ドライフラワー",
+      "드라이 플라워": "Yuuri Dry Flower ドライフラワー",
+      "카타오모이": "Aimer Kataomoi カタオモイ",
+      "짝사랑": "Aimer Kataomoi カタオモイ",
+      "잔향산가": "Aimer Zankyosanka 残響散歌",
+      "귀멸의 칼날": "Demon Slayer OST Aimer LiSA",
+      "주술회전": "Jujutsu Kaisen OST Eve Kaikai Kitan",
+      "최애의 아이": "Oshi no Ko YOASOBI Idol",
+      "스파이 패밀리": "Spy x Family Official HIGE DANdism",
+      "체인소맨": "Chainsaw Man Kenshi Yonezu Kick Back"
+    };
+
+    window.onload = function() {
+      renderThemeSwatches();
+
+      // 저장된 테마 및 다크모드 불러오기
+      const savedTheme = localStorage.getItem('chunyang_theme_id') || 'classic-mint';
+      applyTheme(savedTheme, false);
+
+      const isDark = localStorage.getItem('chunyang_dark_mode') === 'true';
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        updateDarkModeUI(true);
+      } else {
+        document.documentElement.classList.remove('dark');
+        updateDarkModeUI(false);
+      }
+
+      fetchExternalSongs('J-POP Trending');
+
+      document.getElementById('customSearchQuery').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+          searchCustomKeyword();
+        }
+      });
+    };
+
+    // 10가지 파스텔 테마 스와치 렌더링
+    function renderThemeSwatches() {
+      const container = document.getElementById('themeSwatchContainer');
+      container.innerHTML = '';
+
+      themePresets.forEach(preset => {
+        const swatchHtml = `
+          <button onclick="applyTheme('${preset.id}', true)" class="p-2 bg-gray-50 dark:bg-gray-700/60 hover:bg-white dark:hover:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 flex flex-col items-center gap-1.5 transition active:scale-95 text-center group">
+            <div class="w-7 h-7 rounded-full shadow-xs border-2 border-white dark:border-gray-800 transition transform group-hover:scale-110" style="background-color: ${preset.hex}"></div>
+            <span class="text-[10px] font-bold text-gray-700 dark:text-gray-200">${preset.name}</span>
+          </button>
+        `;
+        container.insertAdjacentHTML('beforeend', swatchHtml);
+      });
+    }
+
+    // 테마 적용 함수 (CSS Root 변수 세팅)
+    function applyTheme(themeId, save = true) {
+      const preset = themePresets.find(p => p.id === themeId) || themePresets[0];
+      const root = document.documentElement;
+
+      root.style.setProperty('--color-theme-50', preset[50]);
+      root.style.setProperty('--color-theme-100', preset[100]);
+      root.style.setProperty('--color-theme-200', preset[200]);
+      root.style.setProperty('--color-theme-300', preset[300]);
+      root.style.setProperty('--color-theme-400', preset[400]);
+      root.style.setProperty('--color-theme-500', preset[500]);
+      root.style.setProperty('--color-theme-600', preset[600]);
+      root.style.setProperty('--color-theme-700', preset[700]);
+      root.style.setProperty('--color-theme-800', preset[800]);
+      root.style.setProperty('--color-theme-900', preset[900]);
+      root.style.setProperty('--bg-page', document.documentElement.classList.contains('dark') ? '#0f1715' : preset.bg);
+
+      if (save) {
+        localStorage.setItem('chunyang_theme_id', themeId);
+      }
+    }
+
+    // 다크 모드 토글
+    function toggleDarkMode() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('chunyang_dark_mode', isDark);
+
+      // 현재 테마 배경 재설정
+      const savedTheme = localStorage.getItem('chunyang_theme_id') || 'classic-mint';
+      const preset = themePresets.find(p => p.id === savedTheme) || themePresets[0];
+      document.documentElement.style.setProperty('--bg-page', isDark ? '#0f1715' : preset.bg);
+
+      updateDarkModeUI(isDark);
+    }
+
+    function updateDarkModeUI(isDark) {
+      document.getElementById('darkModeStatusText').innerText = isDark ? '현재: 다크 모드' : '현재: 라이트 모드';
+      document.getElementById('darkModeBtnIcon').innerText = isDark ? '☀️' : '🌙';
+      document.getElementById('darkModeBtnText').innerText = isDark ? '라이트모드' : '다크모드';
+    }
+
     function toggleAccordionSmooth(id) {
       const content = document.getElementById(id);
       const icon = document.getElementById('icon-' + id);
@@ -230,31 +550,144 @@
       }
     }
 
+    function translateKoreanToQuery(input) {
+      const trimmed = input.trim();
+      let converted = trimmed;
+
+      for (const [kr, jp] of Object.entries(koreanToJapaneseMap)) {
+        if (trimmed.includes(kr)) {
+          converted = converted.replace(kr, jp);
+        }
+      }
+      return converted;
+    }
+
+    // 원어 제목 옆 한국어 번역 해석 자동 매핑
+    function getKoreanTranslation(title) {
+      for (const [jpKey, krVal] of Object.entries(japaneseToKoreanTranslationMap)) {
+        if (title.includes(jpKey)) {
+          return krVal;
+        }
+      }
+      return null;
+    }
+
     function searchCustomKeyword() {
-      const query = document.getElementById('customSearchQuery').value.trim();
-      if (!query) {
+      const inputVal = document.getElementById('customSearchQuery').value.trim();
+      if (!inputVal) {
         alert('검색어를 입력해 주세요!');
         return;
       }
-      fetchExternalSongs(query);
+      const convertedQuery = translateKoreanToQuery(inputVal);
+      fetchExternalSongs(convertedQuery);
     }
 
     function refreshCurrentCategory() {
-      fetchExternalSongs(currentCategoryQuery);
+      if (window.currentSelectedCategory === 'pick') {
+        window.renderChunyangPicksUI();
+      } else {
+        fetchExternalSongs(currentCategoryQuery);
+      }
     }
 
-    function fetchExternalSongs(searchTerm, event) {
-      currentCategoryQuery = searchTerm;
+    window.switchToChunyangPickCategory = function(event) {
+      window.currentSelectedCategory = 'pick';
+      updateFilterButtonsUI(event);
+      
+      document.getElementById('sectionHeaderTitle').innerText = '👑 김츄냥 픽 (Chunyang\'s Pick)';
+      document.getElementById('sectionHeaderSub').innerText = '클라우드 서버에 영구적으로 보관된 츄냥님 전용 노래입니다';
+      document.getElementById('refreshBtn').classList.add('hidden');
 
+      window.renderChunyangPicksUI();
+    };
+
+    window.renderChunyangPicksUI = function() {
+      const container = document.getElementById('recommendationResults');
+      const pickList = window.chunyangPickList || [];
+
+      document.getElementById('pickBadgeCount').innerText = pickList.length;
+
+      if (window.currentSelectedCategory !== 'pick') return;
+
+      container.classList.add('fade-out');
+
+      setTimeout(() => {
+        container.innerHTML = '';
+
+        if (pickList.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-10 px-4 bg-amber-50/50 dark:bg-amber-900/20 rounded-2xl border border-amber-100 dark:border-amber-800">
+              <span class="text-3xl">👑</span>
+              <p class="text-xs font-bold text-amber-800 dark:text-amber-200 mt-2">아직 김츄냥 픽에 저장된 노래가 없습니다.</p>
+              <p class="text-[11px] text-gray-500 dark:text-gray-400 mt-1">다른 카테고리에서 검색 후 '+ 김츄냥 픽에 추가'를 눌러보세요!</p>
+            </div>
+          `;
+        } else {
+          pickList.forEach((item, idx) => {
+            const delay = idx * 0.05;
+            const title = item.title || '제목 없음';
+            const translatedTitle = item.translatedTitle ? ` (${item.translatedTitle})` : '';
+            const artist = item.artist || '아티스트 없음';
+            const albumImg = item.artwork || '';
+            const genre = item.genre || 'J-POP';
+            const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(artist + ' ' + title)}`;
+
+            const itemHtml = `
+              <div class="song-item-enter bg-amber-50/60 dark:bg-amber-950/40 hover:bg-amber-100/60 dark:hover:bg-amber-900/50 p-3 rounded-xl border border-amber-200/80 dark:border-amber-800/80 transition flex items-center justify-between group" style="animation-delay: ${delay}s;">
+                <div class="flex items-center gap-3 overflow-hidden">
+                  <img src="${albumImg}" alt="cover" class="w-10 h-10 rounded-lg object-cover border border-amber-200 dark:border-amber-700 shadow-xs flex-shrink-0">
+                  <div class="truncate">
+                    <div class="flex items-center gap-1 truncate">
+                      <span class="text-[10px] bg-amber-500 text-white font-bold px-1 rounded flex-shrink-0">PICK</span>
+                      <h4 class="text-xs font-bold text-gray-800 dark:text-gray-100 truncate">${title}<span class="text-amber-700 dark:text-amber-300 font-semibold">${translatedTitle}</span></h4>
+                    </div>
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400 truncate">${artist}</p>
+                    <span class="inline-block text-[9px] bg-white dark:bg-gray-800 border border-amber-200 dark:border-amber-700 text-amber-800 dark:text-amber-200 px-1.5 py-0.2 rounded mt-0.5">${genre}</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-1 flex-shrink-0 ml-2">
+                  <a href="${youtubeSearchUrl}" target="_blank" rel="noopener noreferrer" class="bg-white dark:bg-gray-800 hover:bg-amber-500 hover:text-white text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 rounded-lg px-2.5 py-1.5 transition shadow-xs flex items-center gap-1 text-[11px] font-bold">
+                    <span>재생</span>
+                    <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                  </a>
+                  <button onclick="window.deletePickFromFirestore('${item.id}', '${title.replace(/'/g, "\\'")}')" class="bg-white dark:bg-gray-800 hover:bg-red-500 hover:text-white text-red-500 border border-red-200 dark:border-red-800 rounded-lg p-1.5 transition shadow-xs">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                  </button>
+                </div>
+              </div>
+            `;
+            container.insertAdjacentHTML('beforeend', itemHtml);
+          });
+        }
+
+        container.classList.remove('fade-out');
+        container.classList.add('fade-in');
+      }, 200);
+    };
+
+    function updateFilterButtonsUI(event) {
       if (event && event.currentTarget) {
         const btns = document.querySelectorAll('.mood-btn');
         btns.forEach(btn => {
-          btn.classList.remove('bg-mint-500', 'text-white', 'shadow-sm');
-          btn.classList.add('bg-gray-100', 'text-gray-600');
+          if (!btn.classList.contains('bg-amber-100')) {
+            btn.classList.remove('bg-theme-500', 'text-white', 'shadow-sm');
+            btn.classList.add('bg-gray-100', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+          }
         });
-        event.currentTarget.classList.remove('bg-gray-100', 'text-gray-600');
-        event.currentTarget.classList.add('bg-mint-500', 'text-white', 'shadow-sm');
+        event.currentTarget.classList.remove('bg-gray-100', 'dark:bg-gray-700', 'text-gray-600', 'dark:text-gray-300');
+        event.currentTarget.classList.add('bg-theme-500', 'text-white', 'shadow-sm');
       }
+    }
+
+    function fetchExternalSongs(searchTerm, event) {
+      window.currentSelectedCategory = 'search';
+      currentCategoryQuery = searchTerm;
+
+      document.getElementById('sectionHeaderTitle').innerText = '실시간 음악 추천 & 검색';
+      document.getElementById('sectionHeaderSub').innerText = '한국어 해석이 병기되며 발음으로 자유롭게 검색 가능합니다';
+      document.getElementById('refreshBtn').classList.remove('hidden');
+
+      updateFilterButtonsUI(event);
 
       const spinner = document.getElementById('spinner');
       const container = document.getElementById('recommendationResults');
@@ -273,7 +706,7 @@
             container.innerHTML = '';
 
             if (!data.results || data.results.length === 0) {
-              container.innerHTML = `<p class="text-xs text-gray-400 text-center py-8">검색 결과가 없습니다. 다른 검색어로 시도해보세요!</p>`;
+              container.innerHTML = `<p class="text-xs text-gray-400 text-center py-8">검색 결과가 없습니다. 다른 검색어나 발음으로 시도해보세요!</p>`;
             } else {
               const shuffled = [...data.results].sort(() => 0.5 - Math.random());
               const selectedList = shuffled.slice(0, 5);
@@ -282,24 +715,44 @@
                 const delay = idx * 0.06;
                 const albumImg = item.artworkUrl100 || '';
                 const title = item.trackName || '제목 없음';
+                
+                // 한국어 번역 해석 자동 매핑
+                const translation = getKoreanTranslation(title);
+                const translatedTitleText = translation ? ` (${translation})` : '';
+
                 const artist = item.artistName || '아티스트 없음';
                 const genre = item.primaryGenreName || 'J-POP';
                 const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(artist + ' ' + title)}`;
 
+                const songDataObj = JSON.stringify({ 
+                  title, 
+                  translatedTitle: translation || '',
+                  artist, 
+                  artwork: albumImg, 
+                  genre 
+                }).replace(/"/g, '&quot;');
+
                 const itemHtml = `
-                  <div class="song-item-enter bg-gray-50/80 hover:bg-mint-50/60 p-3 rounded-xl border border-gray-200/80 hover:border-mint-200 transition flex items-center justify-between group" style="animation-delay: ${delay}s;">
+                  <div class="song-item-enter bg-gray-50/80 dark:bg-gray-700/50 hover:bg-theme-50/60 dark:hover:bg-gray-700 p-3 rounded-xl border border-gray-200/80 dark:border-gray-600 hover:border-theme-200 transition flex items-center justify-between group" style="animation-delay: ${delay}s;">
                     <div class="flex items-center gap-3 overflow-hidden">
-                      <img src="${albumImg}" alt="cover" class="w-10 h-10 rounded-lg object-cover border border-gray-200 shadow-xs flex-shrink-0">
+                      <img src="${albumImg}" alt="cover" class="w-10 h-10 rounded-lg object-cover border border-gray-200 dark:border-gray-600 shadow-xs flex-shrink-0">
                       <div class="truncate">
-                        <h4 class="text-xs font-bold text-gray-800 group-hover:text-mint-800 transition truncate">${title}</h4>
-                        <p class="text-[11px] text-gray-500 truncate">${artist}</p>
-                        <span class="inline-block text-[9px] bg-white border border-mint-100 text-mint-600 px-1.5 py-0.2 rounded mt-0.5">${genre}</span>
+                        <h4 class="text-xs font-bold text-gray-800 dark:text-gray-100 group-hover:text-theme-800 dark:group-hover:text-theme-300 transition truncate">
+                          ${title}<span class="text-theme-600 dark:text-theme-300 font-semibold">${translatedTitleText}</span>
+                        </h4>
+                        <p class="text-[11px] text-gray-500 dark:text-gray-400 truncate">${artist}</p>
+                        <span class="inline-block text-[9px] bg-white dark:bg-gray-800 border border-theme-100 dark:border-gray-600 text-theme-600 dark:text-theme-300 px-1.5 py-0.2 rounded mt-0.5">${genre}</span>
                       </div>
                     </div>
-                    <a href="${youtubeSearchUrl}" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-mint-500 hover:text-white text-mint-600 border border-mint-200 rounded-lg px-2.5 py-1.5 transition shadow-xs flex items-center gap-1 text-[11px] font-bold flex-shrink-0 ml-2">
-                      <span>재생</span>
-                      <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                    </a>
+                    <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                      <button onclick="window.addPickToFirestore(${songDataObj})" class="bg-amber-100 dark:bg-amber-900/60 hover:bg-amber-500 hover:text-white text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 rounded-lg px-2 py-1.5 transition text-[10px] font-bold flex items-center gap-0.5">
+                        <span>+ 픽 추가</span>
+                      </button>
+                      <a href="${youtubeSearchUrl}" target="_blank" rel="noopener noreferrer" class="bg-white dark:bg-gray-800 hover:bg-theme-500 hover:text-white text-theme-600 dark:text-theme-300 border border-theme-200 dark:border-gray-600 rounded-lg px-2.5 py-1.5 transition shadow-xs flex items-center gap-1 text-[11px] font-bold">
+                        <span>재생</span>
+                        <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      </a>
+                    </div>
                   </div>
                 `;
                 container.insertAdjacentHTML('beforeend', itemHtml);
@@ -348,6 +801,5 @@
   </script>
 </body>
 </html>
-
 
 
