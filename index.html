@@ -13,25 +13,43 @@
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'chunyang-music-app';
-    const firebaseConfig = typeof __firebase_config !== 'undefined' 
-      ? JSON.parse(__firebase_config) 
-      : {
-          apiKey: "AIzaSyDemoKeyForPreviewModeOnly12345",
-          authDomain: "chunyang-music.firebaseapp.com",
-          projectId: "chunyang-music",
-          storageBucket: "chunyang-music.appspot.com",
-          messagingSenderId: "1234567890",
-          appId: "1:1234567890:web:abcdef123456"
-        };
+    // GitHub Pages 및 외부 호스팅 환경에서도 오류 없이 동작하는 안전한 Firebase 구성
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'chunyang-music-app-v1';
+    
+    let firebaseConfig;
+    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+      try {
+        firebaseConfig = JSON.parse(__firebase_config);
+      } catch (e) {
+        firebaseConfig = null;
+      }
+    }
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+    // Canvas 환경이 아닐 때(GitHub Pages 호스팅 시) 로컬 스토리지 기반 안전 연동 지원
+    let app, auth, db;
+    let isFirebaseReady = false;
 
-    window.firebaseCtx = { app, auth, db, appId, collection, addDoc, deleteDoc, doc, onSnapshot };
+    if (firebaseConfig) {
+      try {
+        app = initializeApp(firebaseConfig);
+        auth = getAuth(app);
+        db = getFirestore(app);
+        isFirebaseReady = true;
+      } catch (e) {
+        console.warn("Firebase Init fallback to Local mode:", e);
+      }
+    }
 
+    window.firebaseCtx = { app, auth, db, appId, collection, addDoc, deleteDoc, doc, onSnapshot, isFirebaseReady };
+
+    // 인증 및 데이터 수신 초기화
     async function initAuth() {
+      if (!isFirebaseReady || !auth) {
+        // GitHub Pages 독립 실행 모드: 로컬 스토리지 데이터 로드
+        loadPicksFromLocalStorage();
+        return;
+      }
+
       try {
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
@@ -39,21 +57,29 @@
           await signInAnonymously(auth);
         }
       } catch (err) {
-        console.error("Auth Initialisation fallback error:", err);
+        console.warn("Auth Fallback - Switching to Local Storage Mode:", err);
+        loadPicksFromLocalStorage();
       }
+    }
+
+    if (auth) {
+      onAuthStateChanged(auth, (user) => {
+        window.currentUser = user;
+        if (user) {
+          subscribeChunyangPicks();
+        } else {
+          loadPicksFromLocalStorage();
+        }
+      });
     }
 
     initAuth();
 
-    onAuthStateChanged(auth, (user) => {
-      window.currentUser = user;
-      if (user) {
-        subscribeChunyangPicks();
-      }
-    });
-
     function subscribeChunyangPicks() {
-      if (!window.currentUser) return;
+      if (!window.currentUser || !isFirebaseReady) {
+        loadPicksFromLocalStorage();
+        return;
+      }
       const publicColRef = collection(db, 'artifacts', appId, 'public', 'data', 'chunyang_picks');
 
       onSnapshot(publicColRef, (snapshot) => {
@@ -62,48 +88,97 @@
           picks.push({ id: docSnap.id, ...docSnap.data() });
         });
         window.chunyangPickList = picks;
+        savePicksToLocalStorage(picks);
         
         if (window.currentSelectedCategory === 'pick') {
           window.renderChunyangPicksUI();
         }
       }, (error) => {
-        console.error("Firestore onSnapshot error:", error);
+        console.warn("Firestore snapshot failed, using local backup:", error);
+        loadPicksFromLocalStorage();
       });
     }
 
+    function loadPicksFromLocalStorage() {
+      const saved = localStorage.getItem('chunyang_picks_backup');
+      if (saved) {
+        try {
+          window.chunyangPickList = JSON.parse(saved);
+        } catch (e) {
+          window.chunyangPickList = [];
+        }
+      } else {
+        window.chunyangPickList = [];
+      }
+      if (window.currentSelectedCategory === 'pick') {
+        window.renderChunyangPicksUI();
+      }
+    }
+
+    function savePicksToLocalStorage(picks) {
+      localStorage.setItem('chunyang_picks_backup', JSON.stringify(picks));
+    }
+
+    // 노래 '김츄냥 픽'에 저장하기 (서버 + 로컬 스토리지 이중 연동)
     window.addPickToFirestore = async function(songData) {
-      if (!window.currentUser) {
-        alert("서버 연결 초기화 중입니다. 잠시 후 다시 시도해 주세요.");
-        return;
+      const newPick = {
+        id: 'pick_' + Date.now(),
+        title: songData.title,
+        translatedTitle: songData.translatedTitle || '',
+        artist: songData.artist,
+        artwork: songData.artwork,
+        genre: songData.genre || 'J-POP',
+        createdAt: Date.now()
+      };
+
+      if (isFirebaseReady && window.currentUser) {
+        try {
+          const publicColRef = collection(db, 'artifacts', appId, 'public', 'data', 'chunyang_picks');
+          await addDoc(publicColRef, {
+            title: songData.title,
+            translatedTitle: songData.translatedTitle || '',
+            artist: songData.artist,
+            artwork: songData.artwork,
+            genre: songData.genre || 'J-POP',
+            createdAt: Date.now()
+          });
+        } catch (err) {
+          console.warn("Firestore save failed, saved locally:", err);
+        }
       }
-      try {
-        const publicColRef = collection(db, 'artifacts', appId, 'public', 'data', 'chunyang_picks');
-        await addDoc(publicColRef, {
-          title: songData.title,
-          translatedTitle: songData.translatedTitle || '',
-          artist: songData.artist,
-          artwork: songData.artwork,
-          genre: songData.genre || 'J-POP',
-          createdAt: Date.now()
-        });
-        alert(`'${songData.title}' 곡이 김츄냥 픽 카테고리에 서버 영구 저장되었습니다! 👑`);
-      } catch (err) {
-        console.error("Firestore add error:", err);
-        alert("노래 저장 중 오류가 발생했습니다.");
-      }
+
+      // 로컬 스토리지 보장 저장
+      let currentPicks = window.chunyangPickList || [];
+      currentPicks.unshift(newPick);
+      window.chunyangPickList = currentPicks;
+      savePicksToLocalStorage(currentPicks);
+
+      // Badge count 즉시 업데이트
+      const countBadge = document.getElementById('pickBadgeCount');
+      if (countBadge) countBadge.innerText = currentPicks.length;
+
+      alert(`'${songData.title}' 곡이 김츄냥 픽 목록에 영구 저장되었습니다! 👑`);
     };
 
+    // 노래 삭제하기
     window.deletePickFromFirestore = async function(docId, title) {
-      if (!window.currentUser) return;
       if (!confirm(`'${title}' 곡을 김츄냥 픽 목록에서 삭제하시겠습니까?`)) return;
 
-      try {
-        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chunyang_picks', docId);
-        await deleteDoc(docRef);
-      } catch (err) {
-        console.error("Firestore delete error:", err);
-        alert("삭제 중 오류가 발생했습니다.");
+      if (isFirebaseReady && window.currentUser && !docId.startsWith('pick_')) {
+        try {
+          const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'chunyang_picks', docId);
+          await deleteDoc(docRef);
+        } catch (err) {
+          console.warn("Firestore delete failed:", err);
+        }
       }
+
+      let currentPicks = window.chunyangPickList || [];
+      currentPicks = currentPicks.filter(p => p.id !== docId);
+      window.chunyangPickList = currentPicks;
+      savePicksToLocalStorage(currentPicks);
+
+      window.renderChunyangPicksUI();
     };
   </script>
 
@@ -138,9 +213,8 @@
     }
   </script>
   <style>
-    /* 10가지 민트/하늘 테마 색상 변수 정의 */
     :root {
-      /* Theme 1: 클래식 민트 */
+      /* Theme 1: 클래식 민트 (기본) */
       --color-theme-50: #f0fdf9;
       --color-theme-100: #ccfbf1;
       --color-theme-200: #99f6e4;
@@ -154,7 +228,6 @@
       --bg-page: #eef8f5;
     }
 
-    /* 다크 모드 기본 스타일 */
     html.dark {
       --bg-page: #0f1715;
     }
@@ -166,7 +239,6 @@
       transition: background-color 0.3s ease, color 0.3s ease;
     }
     
-    /* 페이드 인 / 아웃 모션 애니메이션 */
     .fade-out {
       opacity: 0;
       transform: translateY(6px);
@@ -206,7 +278,6 @@
       opacity: 1;
     }
 
-    /* 모든 카드 및 UI 배경 색상 부드러운 스무스 트랜지션 */
     .theme-transition {
       transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
     }
@@ -251,7 +322,7 @@
       <div class="flex items-center gap-2 mt-4 w-full max-w-xs">
         <div class="flex-1 bg-theme-50/80 dark:bg-gray-700/60 border border-theme-200 dark:border-gray-600 rounded-2xl px-3 py-2 flex items-center justify-between text-xs font-semibold text-theme-800 dark:text-theme-200">
           <span class="text-gray-400 font-normal">STORAGE:</span>
-          <span class="text-theme-700 dark:text-theme-300 font-bold">Cloud Server DB</span>
+          <span class="text-theme-700 dark:text-theme-300 font-bold">Auto Backup DB</span>
         </div>
         <button id="copyBtn" onclick="copyMyTag()" class="bg-theme-500 hover:bg-theme-600 text-white border border-theme-600 rounded-2xl px-3 py-2 text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
@@ -264,10 +335,9 @@
       </p>
     </section>
 
-    <!-- 3. MAIN SECTION: 실시간 음악 추천 & 김츄냥 픽 카테고리 -->
+    <!-- 3. MAIN SECTION -->
     <main class="bg-white dark:bg-gray-800 rounded-3xl border border-theme-100 dark:border-gray-700 p-5 shadow-soft flex flex-col gap-4 theme-transition">
       
-      <!-- 헤더 영역 -->
       <div class="flex items-center justify-between border-b border-gray-100 dark:border-gray-700 pb-3">
         <div class="flex items-center gap-3">
           <div class="w-9 h-9 rounded-2xl bg-theme-100 dark:bg-theme-900/60 text-theme-600 dark:text-theme-300 flex items-center justify-center font-bold text-base shadow-xs">
@@ -280,7 +350,6 @@
         </div>
       </div>
 
-      <!-- 카테고리 필터 버튼 그룹 -->
       <div>
         <label class="block text-xs font-bold text-gray-600 dark:text-gray-300 mb-2">카테고리 선택</label>
         <div class="flex flex-wrap gap-1.5" id="moodFilterContainer">
@@ -295,7 +364,6 @@
         </div>
       </div>
 
-      <!-- 한국어 지원 검색창 -->
       <div id="searchBarBox" class="flex gap-2">
         <input type="text" id="customSearchQuery" placeholder="곡 제목/아티스트 검색 (한글 발음 지원 ex: 요루시카, 밤을 달리다)" class="flex-1 px-3.5 py-2.5 bg-gray-50 dark:bg-gray-700/60 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:border-theme-500">
         <button onclick="searchCustomKeyword()" class="bg-theme-500 hover:bg-theme-600 text-white font-bold px-4 py-2.5 rounded-xl text-xs transition shadow-sm active:scale-95 flex-shrink-0">
@@ -303,19 +371,17 @@
         </button>
       </div>
 
-      <!-- 새로고침 버튼 -->
       <button id="refreshBtn" onclick="refreshCurrentCategory()" class="w-full py-2.5 bg-gradient-to-r from-theme-500 to-theme-600 hover:from-theme-600 hover:to-theme-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition transform active:scale-98 flex items-center justify-center gap-2">
         <svg class="w-4 h-4 animate-spin hidden" id="spinner" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
         <span>목록 랜덤 믹스 새로고침</span> 🎲
       </button>
 
-      <!-- 결과 리스트 -->
       <div id="recommendationResults" class="flex flex-col gap-2.5 transition-all duration-300 min-h-[160px]">
         <!-- JS 동적 로드 -->
       </div>
     </main>
 
-    <!-- 4. SETTING ACCORDION: 테마 색상 (10가지) & 다크 모드 설정 -->
+    <!-- 4. SETTING ACCORDION -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl border border-theme-100 dark:border-gray-700 shadow-card overflow-hidden theme-transition">
       <button onclick="toggleAccordionSmooth('accSetting')" class="w-full p-4 text-left flex justify-between items-center bg-white dark:bg-gray-800 hover:bg-theme-50/50 dark:hover:bg-gray-700/50 transition">
         <div class="flex items-center gap-3">
@@ -333,7 +399,6 @@
       <div id="accSetting" class="accordion-content">
         <div class="p-4 pt-1 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-4">
           
-          <!-- 다크 모드 / 화이트 모드 스위치 -->
           <div class="flex items-center justify-between bg-theme-50/60 dark:bg-gray-700/50 p-3 rounded-xl border border-theme-100 dark:border-gray-600">
             <div>
               <span class="font-bold text-xs text-gray-800 dark:text-gray-100">화면 모드 (다크/라이트)</span>
@@ -345,23 +410,11 @@
             </button>
           </div>
 
-          <!-- 10가지 민트/하늘 계열 파스텔 테마 스와치 -->
           <div>
             <label class="block text-xs font-bold text-gray-700 dark:text-gray-200 mb-2.5">민트 & 하늘 계열 테마 팔레트 (10가지)</label>
             <div class="grid grid-cols-2 sm:grid-cols-5 gap-2" id="themeSwatchContainer">
               <!-- JS 동적 생성 -->
             </div>
-          </div>
-
-          <!-- Spotify API (선택) -->
-          <div class="pt-2 border-t border-gray-100 dark:border-gray-700 flex flex-col gap-2 text-xs">
-            <span class="font-bold text-gray-700 dark:text-gray-200">Spotify API 연동 (선택)</span>
-            <input type="text" id="spotifyClientId" placeholder="Spotify Client ID" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:border-theme-500">
-            <input type="password" id="spotifyClientSecret" placeholder="Spotify Client Secret" class="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-xs text-gray-800 dark:text-gray-100 focus:outline-none focus:border-theme-500">
-            <button onclick="saveApiCredentials()" class="bg-theme-500 hover:bg-theme-600 text-white font-bold py-2 rounded-xl text-xs transition">
-              설정 저장
-            </button>
-            <p id="apiSaveAlert" class="text-emerald-600 font-semibold text-[11px] text-center hidden">✓ 저장되었습니다!</p>
           </div>
 
         </div>
@@ -370,7 +423,7 @@
 
     <!-- 5. FOOTER -->
     <footer class="mt-4 text-center text-[11px] text-gray-400 dark:text-gray-500 flex flex-col gap-1">
-      <p>© Chunyang's Personal Live Music Portal. Powered by Cloud Database.</p>
+      <p>© Chunyang's Personal Live Music Portal. Powered by Auto Storage.</p>
     </footer>
 
   </div>
@@ -379,7 +432,6 @@
     let currentCategoryQuery = 'J-POP Trending';
     window.currentSelectedCategory = 'search';
 
-    // 10가지 민트/하늘 테마 색상 정의
     const themePresets = [
       { id: 'classic-mint', name: '클래식 민트', hex: '#41b3a3', bg: '#eef8f5', 50: '#f0fdf9', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 400: '#2dd4bf', 500: '#41b3a3', 600: '#35988a', 700: '#2d5a4c', 800: '#1e3e35', 900: '#132822' },
       { id: 'light-mint', name: '라이트 민트', hex: '#34d399', bg: '#ecfdf5', 50: '#ecfdf5', 100: '#d1fae5', 200: '#a7f3d0', 300: '#6ee7b7', 400: '#34d399', 500: '#10b981', 600: '#059669', 700: '#047857', 800: '#065f46', 900: '#064e3b' },
@@ -393,7 +445,6 @@
       { id: 'pale-teal', name: '페일 티얼', hex: '#0d9488', bg: '#f0fdfa', 50: '#f0fdfa', 100: '#ccfbf1', 200: '#99f6e4', 300: '#5eead4', 400: '#2dd4bf', 500: '#14b8a6', 600: '#0d9488', 700: '#0f766e', 800: '#115e59', 900: '#134e4a' }
     ];
 
-    // 대표 일본곡 한국어 번역 / 해석 및 음차 매핑 테이블
     const japaneseToKoreanTranslationMap = {
       "雨とカプチーノ": "비와 카푸치노",
       "言っ て": "말해줘",
@@ -412,12 +463,10 @@
       "Pretender": "프리텐더 (Pretender)",
       "Kick Back": "킥 백 (Kick Back)",
       "Kaikai Kitan": "회회기담",
-      " Shinunoga E-Wa": "죽는 게 나아 (신누노가 이와)",
-      "First Love": "첫사랑 (First Love)",
-      "아무것도 아니야": "Nandemonaiya (아무것도 아니야)"
+      "旅路": "여로 (타비지)",
+      "別の人の彼女になったよ": "다른 사람의 여자친구가 되었어"
     };
 
-    // 한국어 검색어 변환 매핑
     const koreanToJapaneseMap = {
       "요루시카": "Yorushika ヨルシカ",
       "요아소비": "YOASOBI 夜に駆ける",
@@ -426,12 +475,13 @@
       "켄시": "Kenshi Yonezu 米津玄師",
       "에메": "Aimer エメ",
       "유리": "Yuuri 優里",
+      "후지이 카제": "Fujii Kaze 藤井風",
+      "와씨": "wacci",
       "오피셜히게단디즘": "Official HIGE DANdism",
       "히게단": "Official HIGE DANdism",
       "투유": "Tuyu ヅユ",
       "이브": "Eve イブ",
       "라드윗프스": "RADWIMPS",
-      "라드휨스": "RADWIMPS",
       "카나분": "KANA-BOON",
       "백넘버": "back number",
       "킹누": "King Gnu",
@@ -446,19 +496,15 @@
       "드라이플라워": "Yuuri Dry Flower ドライフラワー",
       "드라이 플라워": "Yuuri Dry Flower ドライフラワー",
       "카타오모이": "Aimer Kataomoi カタオモイ",
-      "짝사랑": "Aimer Kataomoi カタオモイ",
-      "잔향산가": "Aimer Zankyosanka 残響散歌",
       "귀멸의 칼날": "Demon Slayer OST Aimer LiSA",
       "주술회전": "Jujutsu Kaisen OST Eve Kaikai Kitan",
       "최애의 아이": "Oshi no Ko YOASOBI Idol",
-      "스파이 패밀리": "Spy x Family Official HIGE DANdism",
-      "체인소맨": "Chainsaw Man Kenshi Yonezu Kick Back"
+      "스파이 패밀리": "Spy x Family Official HIGE DANdism"
     };
 
     window.onload = function() {
       renderThemeSwatches();
 
-      // 저장된 테마 및 다크모드 불러오기
       const savedTheme = localStorage.getItem('chunyang_theme_id') || 'classic-mint';
       applyTheme(savedTheme, false);
 
@@ -473,6 +519,11 @@
 
       fetchExternalSongs('J-POP Trending');
 
+      const countBadge = document.getElementById('pickBadgeCount');
+      if (countBadge && window.chunyangPickList) {
+        countBadge.innerText = window.chunyangPickList.length;
+      }
+
       document.getElementById('customSearchQuery').addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
           searchCustomKeyword();
@@ -480,7 +531,6 @@
       });
     };
 
-    // 10가지 파스텔 테마 스와치 렌더링
     function renderThemeSwatches() {
       const container = document.getElementById('themeSwatchContainer');
       container.innerHTML = '';
@@ -496,7 +546,6 @@
       });
     }
 
-    // 테마 적용 함수 (CSS Root 변수 세팅)
     function applyTheme(themeId, save = true) {
       const preset = themePresets.find(p => p.id === themeId) || themePresets[0];
       const root = document.documentElement;
@@ -518,12 +567,10 @@
       }
     }
 
-    // 다크 모드 토글
     function toggleDarkMode() {
       const isDark = document.documentElement.classList.toggle('dark');
       localStorage.setItem('chunyang_dark_mode', isDark);
 
-      // 현재 테마 배경 재설정
       const savedTheme = localStorage.getItem('chunyang_theme_id') || 'classic-mint';
       const preset = themePresets.find(p => p.id === savedTheme) || themePresets[0];
       document.documentElement.style.setProperty('--bg-page', isDark ? '#0f1715' : preset.bg);
@@ -562,7 +609,6 @@
       return converted;
     }
 
-    // 원어 제목 옆 한국어 번역 해석 자동 매핑
     function getKoreanTranslation(title) {
       for (const [jpKey, krVal] of Object.entries(japaneseToKoreanTranslationMap)) {
         if (title.includes(jpKey)) {
@@ -605,7 +651,8 @@
       const container = document.getElementById('recommendationResults');
       const pickList = window.chunyangPickList || [];
 
-      document.getElementById('pickBadgeCount').innerText = pickList.length;
+      const badge = document.getElementById('pickBadgeCount');
+      if (badge) badge.innerText = pickList.length;
 
       if (window.currentSelectedCategory !== 'pick') return;
 
@@ -716,7 +763,6 @@
                 const albumImg = item.artworkUrl100 || '';
                 const title = item.trackName || '제목 없음';
                 
-                // 한국어 번역 해석 자동 매핑
                 const translation = getKoreanTranslation(title);
                 const translatedTitleText = translation ? ` (${translation})` : '';
 
@@ -770,17 +816,6 @@
           container.classList.remove('fade-out');
           container.classList.add('fade-in');
         });
-    }
-
-    function saveApiCredentials() {
-      const cid = document.getElementById('spotifyClientId').value;
-      const csec = document.getElementById('spotifyClientSecret').value;
-      localStorage.setItem('chunyang_spotify_cid', cid);
-      localStorage.setItem('chunyang_spotify_csec', csec);
-
-      const alertMsg = document.getElementById('apiSaveAlert');
-      alertMsg.classList.remove('hidden');
-      setTimeout(() => alertMsg.classList.add('hidden'), 2500);
     }
 
     function copyMyTag() {
