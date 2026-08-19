@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>츄냥님을 위한 데일리 노래 다이어리 🌿 | J-POP & Live Music API</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            mint: {
+              50: '#f0fdf9',
+              100: '#ccfbf1',
+              200: '#99f6e4',
+              300: '#5eead4',
+              400: '#2dd4bf',
+              500: '#41b3a3',
+              600: '#35988a',
+              700: '#2d5a4c',
+              800: '#1e3e35',
+              900: '#132822'
+            }
+          },
+          fontFamily: {
+            sans: ['Pretendard', 'sans-serif'],
+          },
+          boxShadow: {
+            'soft': '0 8px 25px -5px rgba(65, 179, 163, 0.12), 0 4px 10px -6px rgba(65, 179, 163, 0.08)',
+            'card': '0 4px 15px rgba(65, 179, 163, 0.08)'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #eef8f5;
+      color: #2c3e50;
+      word-break: keep-all;
+    }
+    
+    /* 페이드 인 / 아웃 모션 애니메이션 */
+    .fade-out {
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+    }
+
+    .fade-in {
+      opacity: 1;
+      transform: translateY(0);
+      transition: opacity 0.35s ease-in, transform 0.35s ease-in;
+    }
+
+    .song-item-enter {
+      animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* 부드러운 아코디언(접고 펴기) 슬라이드 애니메이션 */
+    .accordion-content {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.35s ease-in-out;
+    }
+
+    .accordion-content.open {
+      max-height: 500px; /* 내부 컨텐츠 높이에 맞춰 여유 있게 설정 */
+      opacity: 1;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-12 pt-4 px-4 sm:px-6 flex justify-center">
+
+  <div class="w-full max-w-md sm:max-w-lg flex flex-col gap-5">
+
+    <header class="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-100 via-mint-200 to-mint-300 p-6 text-center shadow-soft border border-white/60">
+      <div class="absolute -right-6 -bottom-6 text-mint-500/15 font-bold text-8xl pointer-events-none select-none">🌿</div>
+      <div class="absolute -left-6 -top-6 text-mint-500/15 font-bold text-8xl pointer-events-none select-none">🎵</div>
+      
+      <div class="relative z-10 flex flex-col items-center">
+        <span class="inline-block px-3 py-1 bg-white/80 text-mint-700 text-xs font-bold rounded-full mb-2 shadow-sm border border-mint-100">
+          FOR CHUNYANG • LIVE MUSIC API
+        </span>
+        <h1 class="text-2xl sm:text-3xl font-extrabold text-mint-800 tracking-tight drop-shadow-sm">
+          츄냥님을 위한 데일리 노래 다이어리 🌿
+        </h1>
+        <p class="text-xs sm:text-sm text-mint-700 font-medium mt-1">
+          실시간 외부 뮤직 라이브러리와 연동되는 무제한 J-POP 탐색 공간
+        </p>
+      </div>
+    </header>
+
+    <section class="bg-white rounded-3xl p-6 shadow-soft border border-mint-100/80 flex flex-col items-center text-center">
+      
+      <div class="relative mb-3">
+        <div class="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-tr from-mint-300 to-mint-100 p-1 shadow-md">
+          <div class="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden border-2 border-mint-400">
+            <span class="text-4xl sm:text-5xl">🐱</span>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="text-xl font-bold text-gray-800">츄냥 (Chunyang)</h2>
+      <p class="text-xs text-gray-500 mt-0.5">J-POP & Live Music Curator</p>
+
+      <div class="flex items-center gap-2 mt-4 w-full max-w-xs">
+        <div class="flex-1 bg-mint-50/80 border border-mint-200 rounded-2xl px-3 py-2 flex items-center justify-between text-xs font-semibold text-mint-800">
+          <span class="text-gray-400 font-normal">SOURCE:</span>
+          <span class="text-mint-700 font-bold">Live Music API</span>
+        </div>
+        <button id="copyBtn" onclick="copyMyTag()" class="bg-mint-500 hover:bg-mint-600 text-white border border-mint-600 rounded-2xl px-3 py-2 text-xs font-bold transition flex items-center gap-1 shadow-sm active:scale-95">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          <span id="copyBtnText">소개 복사</span>
+        </button>
+      </div>
+
+      <p class="text-xs text-gray-600 leading-relaxed mt-4 bg-mint-50/50 p-3.5 rounded-2xl border border-mint-100/50 w-full font-medium">
+        "츄냥님을 위해 최신 J-POP부터 잔잔한 어쿠스틱까지 무제한 음악 라이브러리를 실시간으로 탐색하고 무드별로 자유롭게 추천받아보세요 🌿"
+      </p>
+    </section>
+
+    <main class="bg-white rounded-3xl border border-mint-100 p-5 shadow-soft flex flex-col gap-4">
+      
+      <div class="flex items-center gap-3 border-b border-gray-100 pb-3">
+        <div class="w-9 h-9 rounded-2xl bg-mint-100 text-mint-600 flex items-center justify-center font-bold text-base shadow-xs">
+          🌐
+        </div>
+        <div>
+          <h3 class="font-bold text-base text-gray-800">실시간 외부 음악 추천 & 검색</h3>
+          <p class="text-[11px] text-gray-400">외부 라이브러리에서 최신 J-POP을 실시간 추천합니다</p>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-600 mb-2">원하는 무드 또는 아티스트 선택</label>
+        <div class="flex flex-wrap gap-1.5" id="moodFilterContainer">
+          <button onclick="fetchExternalSongs('J-POP Trending', event)" class="mood-btn active bg-mint-500 text-white text-xs font-medium px-3 py-1.5 rounded-full transition shadow-sm">🔥 최신 트렌딩</button>
+          <button onclick="fetchExternalSongs('JPOP Acoustic Chill', event)" class="mood-btn bg-gray-100 text-gray-600 hover:bg-mint-100 text-xs font-medium px-3 py-1.5 rounded-full transition">🎧 어쿠스틱 / 힐링</button>
+          <button onclick="fetchExternalSongs('Anime OST Hit', event)" class="mood-btn bg-gray-100 text-gray-600 hover:bg-mint-100 text-xs font-medium px-3 py-1.5 rounded-full transition">🌸 인기 애니 OST</button>
+          <button onclick="fetchExternalSongs('Yorushika YOASOBI Aimer', event)" class="mood-btn bg-gray-100 text-gray-600 hover:bg-mint-100 text-xs font-medium px-3 py-1.5 rounded-full transition">✨ 감성 대표 아티스트</button>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <input type="text" id="customSearchQuery" placeholder="곡 제목, 아티스트 이름 직접 검색..." class="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-mint-500">
+        <button onclick="searchCustomKeyword()" class="bg-mint-500 hover:bg-mint-600 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm active:scale-95">
+          검색
+        </button>
+      </div>
+
+      <button onclick="refreshCurrentCategory()" class="w-full py-3 bg-gradient-to-r from-mint-500 to-mint-600 hover:from-mint-600 hover:to-mint-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md transition transform active:scale-98 flex items-center justify-center gap-2">
+        <svg class="w-4 h-4 animate-spin hidden" id="spinner" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+        <span>추천 목록 랜덤 믹스 새로고침</span> 🎲
+      </button>
+
+      <div id="recommendationResults" class="flex flex-col gap-2.5 transition-all duration-300 min-h-[160px]">
+        </div>
+    </main>
+
+    <div class="bg-white rounded-2xl border border-mint-100 shadow-card overflow-hidden">
+      <button onclick="toggleAccordionSmooth('accSetting')" class="w-full p-4 text-left flex justify-between items-center bg-white hover:bg-mint-50/50 transition">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-xl bg-mint-100 text-mint-600 flex items-center justify-center font-bold text-sm">
+            🔑
+          </div>
+          <div>
+            <h3 class="font-bold text-sm sm:text-base text-gray-800">Spotify API 연동 설정 (선택)</h3>
+            <p class="text-[11px] text-gray-400">개발자 Client ID 설정 시 차트 연동 가능</p>
+          </div>
+        </div>
+        <svg id="icon-accSetting" class="w-5 h-5 text-mint-500 transform transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+      </button>
+
+      <div id="accSetting" class="accordion-content">
+        <div class="p-4 pt-1 border-t border-gray-100">
+          <div class="flex flex-col gap-2.5 text-xs">
+            <p class="text-gray-500 leading-relaxed">
+              기본 상태에서도 실시간 음악 API를 기반으로 자동 검색 및 추천됩니다.
+            </p>
+            <input type="text" id="spotifyClientId" placeholder="Spotify Client ID" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-mint-500">
+            <input type="password" id="spotifyClientSecret" placeholder="Spotify Client Secret" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs focus:outline-none focus:border-mint-500">
+            <button onclick="saveApiCredentials()" class="bg-mint-500 hover:bg-mint-600 text-white font-bold py-2 rounded-xl text-xs transition">
+              설정 저장
+            </button>
+            <p id="apiSaveAlert" class="text-emerald-600 font-semibold text-[11px] text-center hidden">✓ 저장되었습니다!</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="mt-4 text-center text-[11px] text-gray-400 flex flex-col gap-1">
+      <p>© Chunyang's Personal Live Music Portal. Powered by External Music APIs.</p>
+    </footer>
+
+  </div>
+
+  <script>
+    let currentCategoryQuery = 'J-POP Trending';
+
+    window.onload = function() {
+      fetchExternalSongs('J-POP Trending');
+    };
+
+    // 부드러운 아코디언 토글 함수
+    function toggleAccordionSmooth(id) {
+      const content = document.getElementById(id);
+      const icon = document.getElementById('icon-' + id);
+      
+      if (content.classList.contains('open')) {
+        content.classList.remove('open');
+        icon.classList.remove('rotate-180');
+      } else {
+        content.classList.add('open');
+        icon.classList.add('rotate-180');
+      }
+    }
+
+    function searchCustomKeyword() {
+      const query = document.getElementById('customSearchQuery').value.trim();
+      if (!query) {
+        alert('검색어를 입력해 주세요!');
+        return;
+      }
+      fetchExternalSongs(query);
+    }
+
+    function refreshCurrentCategory() {
+      fetchExternalSongs(currentCategoryQuery);
+    }
+
+    function fetchExternalSongs(searchTerm, event) {
+      currentCategoryQuery = searchTerm;
+
+      if (event && event.currentTarget) {
+        const btns = document.querySelectorAll('.mood-btn');
+        btns.forEach(btn => {
+          btn.classList.remove('bg-mint-500', 'text-white', 'shadow-sm');
+          btn.classList.add('bg-gray-100', 'text-gray-600');
+        });
+        event.currentTarget.classList.remove('bg-gray-100', 'text-gray-600');
+        event.currentTarget.classList.add('bg-mint-500', 'text-white', 'shadow-sm');
+      }
+
+      const spinner = document.getElementById('spinner');
+      const container = document.getElementById('recommendationResults');
+
+      spinner.classList.remove('hidden');
+      container.classList.add('fade-out');
+      container.classList.remove('fade-in');
+
+      const apiUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(searchTerm)}&entity=song&limit=25&country=JP`;
+
+      fetch(apiUrl)
+        .then(res => res.json())
+        .then(data => {
+          setTimeout(() => {
+            spinner.classList.add('hidden');
+            container.innerHTML = '';
+
+            if (!data.results || data.results.length === 0) {
+              container.innerHTML = `<p class="text-xs text-gray-400 text-center py-8">검색 결과가 없습니다. 다른 검색어로 시도해보세요!</p>`;
+            } else {
+              const shuffled = [...data.results].sort(() => 0.5 - Math.random());
+              const selectedList = shuffled.slice(0, 5);
+
+              selectedList.forEach((item, idx) => {
+                const delay = idx * 0.06;
+                const albumImg = item.artworkUrl100 || '';
+                const title = item.trackName || '제목 없음';
+                const artist = item.artistName || '아티스트 없음';
+                const genre = item.primaryGenreName || 'J-POP';
+                const youtubeSearchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(artist + ' ' + title)}`;
+
+                const itemHtml = `
+                  <div class="song-item-enter bg-gray-50/80 hover:bg-mint-50/60 p-3 rounded-xl border border-gray-200/80 hover:border-mint-200 transition flex items-center justify-between group" style="animation-delay: ${delay}s;">
+                    <div class="flex items-center gap-3 overflow-hidden">
+                      <img src="${albumImg}" alt="cover" class="w-10 h-10 rounded-lg object-cover border border-gray-200 shadow-xs flex-shrink-0">
+                      <div class="truncate">
+                        <h4 class="text-xs font-bold text-gray-800 group-hover:text-mint-800 transition truncate">${title}</h4>
+                        <p class="text-[11px] text-gray-500 truncate">${artist}</p>
+                        <span class="inline-block text-[9px] bg-white border border-mint-100 text-mint-600 px-1.5 py-0.2 rounded mt-0.5">${genre}</span>
+                      </div>
+                    </div>
+                    <a href="${youtubeSearchUrl}" target="_blank" rel="noopener noreferrer" class="bg-white hover:bg-mint-500 hover:text-white text-mint-600 border border-mint-200 rounded-lg px-2.5 py-1.5 transition shadow-xs flex items-center gap-1 text-[11px] font-bold flex-shrink-0 ml-2">
+                      <span>재생</span>
+                      <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </a>
+                  </div>
+                `;
+                container.insertAdjacentHTML('beforeend', itemHtml);
+              });
+            }
+
+            container.classList.remove('fade-out');
+            container.classList.add('fade-in');
+          }, 300);
+        })
+        .catch(err => {
+          console.error(err);
+          spinner.classList.add('hidden');
+          container.innerHTML = `<p class="text-xs text-red-400 text-center py-8">음악 데이터를 불러오는 중 오류가 발생했습니다.</p>`;
+          container.classList.remove('fade-out');
+          container.classList.add('fade-in');
+        });
+    }
+
+    function saveApiCredentials() {
+      const cid = document.getElementById('spotifyClientId').value;
+      const csec = document.getElementById('spotifyClientSecret').value;
+      localStorage.setItem('chunyang_spotify_cid', cid);
+      localStorage.setItem('chunyang_spotify_csec', csec);
+
+      const alertMsg = document.getElementById('apiSaveAlert');
+      alertMsg.classList.remove('hidden');
+      setTimeout(() => alertMsg.classList.add('hidden'), 2500);
+    }
+
+    function copyMyTag() {
+      const textToCopy = "츄냥님을 위한 J-POP & Live Music API 다이어리 🌿";
+      const tempInput = document.createElement("input");
+      tempInput.value = textToCopy;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand("copy");
+      document.body.removeChild(tempInput);
+
+      const btnText = document.getElementById("copyBtnText");
+      btnText.innerText = "복사 완료!";
+      setTimeout(() => {
+        btnText.innerText = "소개 복사";
+      }, 2000);
+    }
+  </script>
+</body>
+</html>
+
+
+
